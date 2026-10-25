@@ -146,48 +146,53 @@ def main():
     hebb_weights = compute_weight(patterns)
     storkey_weights = compute_storkey_weights(patterns)
 
+    print("***************  Weight Test ****************\n")
+
     print(f"Diagonals are zero: {np.all(np.diag(hebb_weights) == 0)}")
     print(f"Weight is Symmetric: {np.allclose(hebb_weights, hebb_weights.T)}")
-    print(f"Has immediate fixed point: {test_one_step_fixed(patterns, hebb_weights)}")
+    print(f"Has immediate fixed point: {test_one_step_fixed(patterns, hebb_weights)}\n")
 
     print(f"Storkey Diagonals are zero: {np.all(np.diag(storkey_weights) == 0)}")
     print(f"Storkey Weight is Symmetric: {np.allclose(storkey_weights, storkey_weights.T)}")
     print(f"Storkey Has immediate fixed point: {test_one_step_fixed(patterns, storkey_weights)}")
 
-    # Test retrieval from corrupted pattern
+    print("\n************** Retrieval From Corrupted pattern test **************\n")
+
     target_pattern = patterns[0]
     corrupted_probe = generate_probe(target_pattern, flip_ratio=0.2)
+
     hamming_dist_start = np.sum(target_pattern != corrupted_probe)
     print(f"Initial corrupted bits: {hamming_dist_start}/50")
 
-    recovered_state, energy_history = async_update_loop(hebb_weights, corrupted_probe)
-    hamming_dist_end = np.sum(target_pattern != recovered_state)
-    print(f"Bits mismatched after relaxation: {hamming_dist_end}/50")
+    hebb_recovered_state, hebb_energy_history = async_update_loop(hebb_weights, corrupted_probe)
+    storkey_recovered_state, storkey_energy_history = async_update_loop(storkey_weights, corrupted_probe)
 
-    print("\nEnergy descent history:")
-    for step, e in enumerate(energy_history):
+    hebb_hamming_dist_end = np.sum(target_pattern != hebb_recovered_state)
+    storkey_hamming_dist_end = np.sum(target_pattern != storkey_recovered_state)
+
+    print(f"Hebbian Bits mismatched after relaxation: {hebb_hamming_dist_end}/50")
+    print(f"Storkey Bits mismatched after relaxation: {storkey_hamming_dist_end}/50")
+
+    print("\nHebbian Energy descent history:")
+    for step, e in enumerate(hebb_energy_history):
         print(f"  Step {step:02d}: E = {e:.4f}")
 
+    print("\nStorkey Energy descent history:")
+    for step, e in enumerate(storkey_energy_history):
+        print(f"  Step {step:02d}: E = {e:.4f}")
+    
     # Monotonicity test
-    energy_diffs = np.diff(energy_history)
-    print(f"\nEnergy strictly non-increasing: {np.all(energy_diffs <= 1e-9)}")
+    hebb_energy_diffs = np.diff(hebb_energy_history)
+    print(f"\nHebbian Energy strictly non-increasing: {np.all(hebb_energy_diffs <= 1e-9)}")
 
-    print("\n*************** Hebbian vs Storkey learning *************** \n")
-    print("Testing memory capacity")
-
-    large_patterns = generate_patterns(50, 10)
-    large_hebb_weights = compute_weight(large_patterns)
-    large_storkey_weights = compute_storkey_weights(large_patterns)
-
-    # Testing one step fixed:
-    print(f"Hebbian has immediate fixed point: {test_one_step_fixed(large_patterns, large_hebb_weights)}")
-    print(f"Storkey has immediate fixed point: {test_one_step_fixed(large_patterns, large_storkey_weights)}")
+    storkey_energy_diffs = np.diff(storkey_energy_history)
+    print(f"Storkey Energy strictly non-increasing: {np.all(storkey_energy_diffs <= 1e-9)}")
 
     print("\n============ Pathology Check ============\n")
     print(f"Is Hebbian inverse a stable attractor: {test_pathology(hebb_weights, patterns[0])}")
     print(f"Is storkey inverse a stable attractor: {test_pathology(storkey_weights, patterns[0])}")
 
-    print("\n============ Sweep Results ============\n")
+    print("\n============ Memory Capacity Comparison Sweep ============\n")
     amounts = [10,14,20,25,30]
     hebb_results, storkey_results = compute_sweep()
 
