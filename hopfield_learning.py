@@ -112,7 +112,7 @@ def test_pathology(weights: np.ndarray, pattern: np.ndarray) -> bool:
 
     return is_attractor
 
-def compute_sweep(size=100, amounts=(10, 14, 20, 25, 30), num_trials=15):
+def compute_sweep(size=100, amounts=(10, 14, 20, 25, 30), num_trials=15) -> tuple[list[float], list[float]]:
     hebb_fixed_rate = []
     storkey_fixed_rate = []
 
@@ -139,6 +139,20 @@ def compute_sweep(size=100, amounts=(10, 14, 20, 25, 30), num_trials=15):
         storkey_fixed_rate.append(float(np.mean(storkey_trial_rates)))
 
     return hebb_fixed_rate, storkey_fixed_rate
+
+def compare_noisy_probe_retreival(hebb_weights: np.ndarray, storkey_weights: np.ndarray, pattern: np.ndarray, probe_ratios: list[float]):
+    probes = [generate_probe(pattern, i) for i in probe_ratios]
+    hebb_solves = []
+    storkey_solves = []
+
+    for probe in probes:
+        updated_hebb, hebb_energy_seq = async_update_loop(hebb_weights, probe)
+        updated_storkey, storkey_energy_seq = async_update_loop(storkey_weights, probe)
+
+        hebb_solves.append(np.array_equal(pattern, updated_hebb))
+        storkey_solves.append(np.array_equal(pattern, updated_storkey))
+
+    return hebb_solves, storkey_solves
 
 def main():
     np.random.seed(42)  # For reproducible verification
@@ -199,6 +213,14 @@ def main():
     print("Amount \t Hebbian Fixed Rate \t Storkey Fixed Rate")
     for i, amount in enumerate(amounts):
         print(f"{amount} \t {hebb_results[i]:.4f} \t {storkey_results[i]:.4f}")
+
+    print("\n============ Memory Capacity Comparison Sweep ============\n")
+    probe_ratios = [0.05, 0.1, 0.2, 0.3]
+
+    hebb_solves, storkey_solves = compare_noisy_probe_retreival(hebb_weights, storkey_weights, patterns[0], probe_ratios)
+    print("Probe ratio \t Hebbian Solved \t Storkey Solved")
+    for i,value in enumerate(hebb_solves):
+        print(f"{probe_ratios[i]} \t {hebb_solves[i]} \t {storkey_solves[i]}") 
 
 if __name__ == "__main__":
     main()
