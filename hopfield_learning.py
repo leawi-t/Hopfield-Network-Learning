@@ -95,25 +95,50 @@ def test_one_step_fixed(patterns: list[np.ndarray], weight: np.ndarray) -> bool:
     return True
 
 def test_pathology(weights: np.ndarray, pattern: np.ndarray) -> bool:
-    inverse = pattern.copy()
-    inverse*=-1
+    inverse = -pattern
+    is_attractor = True
 
-    isAttractor = True
+    # 1. One-step fixed point test
+    if not np.array_equal(inverse, sgn(weights @ inverse)):
+        print("Inverse is not a stable attractor: fails immediate fixed point test.")
+        is_attractor = False
 
-    # test one step fixed
-    if not np.array_equal(inverse, sgn(np.dot(inverse, weights))):
-        print("Inverse is not a stable attractor, fails immediate fixed point test")
-        isAttractor = False
-
-    # test same energy:
+    # 2. Energy symmetry test (using np.isclose for float safety)
     pattern_energy = compute_energy(weights, pattern)
     inverse_energy = compute_energy(weights, inverse)
+    if not np.isclose(pattern_energy, inverse_energy):
+        print("Inverse is not a stable attractor: fails energy parity test.")
+        is_attractor = False
 
-    if pattern_energy != inverse_energy:
-        print("Inverse is not a stable attractor, fails same energy test")
-        isAttractor = False
+    return is_attractor
 
-    return isAttractor
+def compute_sweep(size=100, amounts=(10, 14, 20, 25, 30), num_trials=15):
+    hebb_fixed_rate = []
+    storkey_fixed_rate = []
+
+    for p in amounts:
+        hebb_trial_rates = []
+        storkey_trial_rates = []
+
+        for _ in range(num_trials):
+            patterns = generate_patterns(size=size, amount=p)
+            P = np.stack(patterns)  # Shape: (p, size)
+
+            w_hebb = compute_weight(patterns)
+            w_storkey = compute_storkey_weights(patterns)
+
+            # Parallel reconstruction check for all p patterns
+            # Since W is symmetric, (P @ W)[k] == W @ patterns[k]
+            hebb_recon = sgn(P @ w_hebb)
+            storkey_recon = sgn(P @ w_storkey)
+
+            hebb_trial_rates.append(np.mean(np.all(P == hebb_recon, axis=1)))
+            storkey_trial_rates.append(np.mean(np.all(P == storkey_recon, axis=1)))
+
+        hebb_fixed_rate.append(float(np.mean(hebb_trial_rates)))
+        storkey_fixed_rate.append(float(np.mean(storkey_trial_rates)))
+
+    return hebb_fixed_rate, storkey_fixed_rate
 
 def main():
     np.random.seed(42)  # For reproducible verification
@@ -147,7 +172,7 @@ def main():
     energy_diffs = np.diff(energy_history)
     print(f"\nEnergy strictly non-increasing: {np.all(energy_diffs <= 1e-9)}")
 
-    print("\n============ Hebbian vs Storkey learning ============== \n")
+    print("\n*************** Hebbian vs Storkey learning *************** \n")
     print("Testing memory capacity")
 
     large_patterns = generate_patterns(50, 10)
@@ -161,7 +186,14 @@ def main():
     print("\n============ Pathology Check ============\n")
     print(f"Is Hebbian inverse a stable attractor: {test_pathology(hebb_weights, patterns[0])}")
     print(f"Is storkey inverse a stable attractor: {test_pathology(storkey_weights, patterns[0])}")
-    
+
+    print("\n============ Sweep Results ============\n")
+    amounts = [10,14,20,25,30]
+    hebb_results, storkey_results = compute_sweep()
+
+    print("Amount \t Hebbian Fixed Rate \t Storkey Fixed Rate")
+    for i, amount in enumerate(amounts):
+        print(f"{amount} \t {hebb_results[i]:.4f} \t {storkey_results[i]:.4f}")
 
 if __name__ == "__main__":
     main()
